@@ -1,0 +1,19 @@
+# Imágenes
+images/
+
+# Anotaciones
+annotations/
+
+# Vídeos
+*.MP4
+*.mp4
+
+# Resultados temporales
+resultados/**/*.cache
+resultados/**/*.txt
+
+# Archivos temporales
+.ipynb_checkpoints/
+
+# Configuración local
+.vscode/

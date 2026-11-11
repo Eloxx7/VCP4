@@ -1,0 +1,6 @@
+path: C:\Users\traco\UNIVERSIDAD\VC\P4\resultados\dataset
+train: train/images
+val: val/images
+test: test/images
+nc: 1
+names: ['plate']
