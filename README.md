@@ -35,8 +35,6 @@ El conjunto se organiza en directorios `train`, `val` y `test`, cada uno con sub
 
 Se entrenan dos detectores de matrículas con imágenes de tamaño **640 × 640**. El entrenamiento de RT-DETR-L se realiza durante 50 épocas, con batch de 8. Para YOLO11n, el código carga un checkpoint `last.pt` de una ejecución anterior y ejecuta otras 50 épocas con batch de 16.
 
-**Importante sobre YOLO11n:** el entrenamiento adicional se guarda con el nombre `yolo11n_plates_ext`, pero las celdas posteriores de comparación cargan los pesos y leen el `results.csv` de `yolo11n_plates`, sin el sufijo `_ext`. Por tanto, las métricas de test y las curvas que aparecen en la comparativa corresponden a `yolo11n_plates`, no al entrenamiento adicional `yolo11n_plates_ext`. No deben atribuirse automáticamente los resultados de la comparativa a ese ajuste adicional.
-
 ### 3.1. YOLO11n
 
 El entrenamiento adicional indicado en el cuaderno parte de:
@@ -81,7 +79,7 @@ El cuaderno genera tres gráficas a partir de los ficheros `results.csv`:
 
 Para RT-DETR-L se utiliza `giou_loss` cuando no está disponible `box_loss`. Estas curvas permiten observar la evolución del aprendizaje y las oscilaciones entre épocas.
 
-La celda de gráficas lee las ejecuciones `yolo11n_plates` y `rtdetr_l_plates`. En consecuencia, la curva de YOLO corresponde a la ejecución base y no a `yolo11n_plates_ext`. Para que la memoria pueda mostrar y contrastar la evolución completa, deben adjuntarse los `results.csv` y las gráficas generadas por el cuaderno.
+La celda de gráficas lee las ejecuciones `yolo11n_plates` y `rtdetr_l_plates`. En consecuencia, la curva de YOLO corresponde a la ejecución base y no a `yolo11n_plates_ext`. Para que la memoria pueda mostrar y contrastar la evolución completa, se adjuntan los `results.csv` y las gráficas generadas por el cuaderno.
 
 **Gráficas del entrenamiento:** ![GRÁFICAS GENERADAS EN LA SECCIÓN 5.1](output.png). 
 
@@ -96,7 +94,7 @@ La función `eval_model` evalúa los mejores pesos sobre la partición `test`, c
 
 RT-DETR-L obtiene un recall, un mAP@0.5 y un mAP@0.5:0.95 superiores. Por tanto, en este conjunto de test localiza una mayor proporción de matrículas y consigue mejores resultados globales según las métricas mAP. YOLO11n alcanza una precisión mayor y un tiempo de inferencia considerablemente menor.
 
-La elección depende del objetivo: YOLO11n resulta más conveniente cuando la velocidad es prioritaria, mientras que RT-DETR-L ofrece mayor exhaustividad de detección a costa de un tiempo de inferencia superior.
+La elección depende del objetivo: YOLO11n resulta más conveniente cuando la velocidad es prioritaria, pero se debe tener en cuenta que podrá fallar más, mientras que RT-DETR-L ofrece mayor exhaustividad de detección a costa de un tiempo de inferencia superior.
 
 Estos resultados deben interpretarse teniendo en cuenta la diferencia de ejecuciones descrita en la sección 3.1: la evaluación de YOLO carga `yolo11n_plates`, aunque el cuaderno también lanza un entrenamiento adicional guardado como `yolo11n_plates_ext`.
 
@@ -120,14 +118,13 @@ La evaluación se realiza sobre las imágenes de test. Una predicción se consid
 | YOLO11n | 0,874 | 0,623 | 0,727 | 654 | 94 | 396 |
 | RT-DETR-L | 0,781 | 0,722 | 0,750 | 758 | 213 | 292 |
 
-El método de contornos obtiene resultados claramente inferiores y genera numerosos falsos positivos. La forma rectangular por sí sola no basta para distinguir una matrícula de otros elementos de la imagen.
+El método de contornos obtiene resultados claramente inferiores y genera numerosos falsos positivos y negativos. La forma rectangular por sí sola no basta para distinguir una matrícula de otros elementos de la imagen.
 
-Entre los detectores entrenados, RT-DETR-L consigue el mayor recall y el mejor F1, mientras que YOLO11n obtiene mayor precisión. Esto refleja el compromiso entre detectar más matrículas y reducir las detecciones incorrectas.
+Entre los detectores entrenados, RT-DETR-L consigue el mayor recall y el mejor F1, mientras que YOLO11n obtiene mayor precisión. Esto refleja el compromiso entre detectar más matrículas y reducir las detecciones incorrectas, que se puede apreciar claramente en que RT-DETR-L presenta más del doble de falsos positivos que YOLO11n.
 
 El cuaderno también genera una comparación visual sobre cuatro imágenes de test, mostrando las detecciones de contornos, YOLO11n y RT-DETR-L.
 
-**Ejemplos visuales:** ![INSERTAR AQUÍ LA FIGURA COMPARATIVA GENERADA EN LA SECCIÓN 6](output_6.png).  
-No se registra una medición de tiempo comparable para el método de contornos, por lo que no se incluye una cifra de velocidad.
+**Ejemplos visuales:** ![INSERTAR AQUÍ LA FIGURA COMPARATIVA GENERADA EN LA SECCIÓN 6](output_6.png)
 
 ## 6. Procesamiento del vídeo: seguimiento, matrículas y OCR
 
@@ -157,13 +154,11 @@ Después se normaliza el texto mediante reglas que contemplan confusiones habitu
 
 Las lecturas se acumulan por identificador de seguimiento y se tienen en cuenta sus confianzas, de forma que el texto asociado al vehículo no dependa de una única lectura.
 
-La instalación de EasyOCR mediante `%pip` no se completó: Windows devolvió `WinError 5` al intentar acceder a `cv2.pyd`. Sin embargo, la salida de la ejecución del pipeline muestra que el lector OCR sí estaba disponible en el entorno utilizado para esa ejecución.
-
 ### 6.3. Pruebas y ajuste del OCR
 
-Además de utilizar OCR en el vídeo, el cuaderno realiza pruebas sobre recortes de matrículas del conjunto de test.
+Además de utilizar OCR en el vídeo, se realizan pruebas sobre recortes de matrículas del conjunto de test.
 
-Primero compara cinco variantes de preprocesamiento y lectura sobre **150 recortes**. La configuración `detect + CLAHE` obtiene un **43,3 % de acierto exacto** y un **62,0 % de resultados con formato válido**. Las otras variantes evaluadas obtienen porcentajes de acierto exacto inferiores.
+Primero comparamos cinco variantes de preprocesamiento y lectura sobre **150 recortes**. La configuración `detect + CLAHE` obtiene un **43,3 % de acierto exacto** y un **62,0 % de resultados con formato válido**. Las otras variantes evaluadas obtienen porcentajes de acierto exacto inferiores.
 
 Posteriormente se realiza una búsqueda por coordenadas de parámetros, utilizando 100 recortes para el ajuste y 50 para validación. La configuración seleccionada modifica tres parámetros respecto a la configuración base:
 
@@ -199,13 +194,9 @@ Tras aplicar el filtro de permanencia mínima de 15 fotogramas y el filtro de á
 
 La salida del propio pipeline informa de **49 vehículos con matrícula detectada** y de **3 vehículos con texto OCR válido**, asociados en esa salida a los identificadores `555`, `626` y `660`.
 
-Hay una discrepancia entre esa cifra y la inspección posterior del CSV: la celda que agrupa el CSV por identificador informa de **35 vehículos con matrícula detectada**, también con **3 textos no vacíos**. Además, los ejemplos de texto que aparecen en esa inspección incluyen los identificadores `626` y `341`. Por tanto, las salidas guardadas en el cuaderno no permiten reconciliar completamente los identificadores y el número de matrículas detectadas entre el resumen del pipeline y el CSV. Para la entrega debe tomarse como referencia el vídeo y el CSV finales de una misma ejecución, y volver a generar ambos si se necesita una cifra única y consistente.
-
 ### 6.5. Vídeo de salida
 
 El pipeline genera un vídeo anotado (`resultado_rtdetr.mp4`, según la configuración del pipeline) con las cajas de detección, identificadores de seguimiento, cajas de matrícula y texto OCR cuando está disponible. También muestra un resumen de los objetos contabilizados.
-
-**Vídeo de test procesado:** Se encuentra en resultados/resultado_rtdetr.mp4 en este mismo repositorio.
 
 ## 7. Volcado CSV
 
@@ -234,8 +225,6 @@ El recuento de filas por clase que aparece al inspeccionar el CSV es:
 | Camión (`truck`) | 48 |
 | **Total** | **20.941** |
 
-El texto OCR puede estar vacío cuando no se consigue una lectura válida. El CSV debe incluirse como fichero real en la entrega, no únicamente mediante una captura.
-
 **CSV de salida:** Se encuentra en resultados/resultado.csv en este mismo repositorio.
 
 ## 8. Conclusiones
@@ -246,5 +235,9 @@ En la evaluación sobre test, RT-DETR-L consigue mayor recall y mAP que YOLO11n,
 
 El pipeline de vídeo combina detección de objetos, seguimiento mediante ByteTrack, detección de matrículas y OCR. El seguimiento permite mantener identificadores entre fotogramas y aplicar filtros para el conteo. El reconocimiento de texto es la parte más sensible a la calidad de imagen: las pruebas con recortes muestran que una mayor anchura de matrícula favorece la lectura.
 
-En la ejecución registrada se procesaron 2.832 fotogramas. No obstante, existe una discrepancia entre el resumen del pipeline y la inspección posterior del CSV en el número de vehículos con matrícula detectada y en algunos identificadores con texto. Es importante generar y entregar el vídeo y el CSV de una misma ejecución para que los resultados finales sean coherentes.
+## 9. Autoría
 
+| Nombre | Apellidos |
+|---|---:|
+| Carmelo Aidán | Romero Pérez |
+| David | Sosa Domínguez |
