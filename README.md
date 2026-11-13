@@ -1,99 +1,120 @@
-
 # Práctica 4 — Detección y seguimiento de personas, vehículos y matrículas
 
 ## 1. Objetivo
 
-El objetivo de esta práctica es desarrollar un sistema capaz de detectar y seguir personas y vehículos en un vídeo, localizar las matrículas de los vehículos y, cuando la calidad de imagen lo permite, reconocer su texto mediante OCR. Además, se comparan dos detectores de matrículas basados en aprendizaje profundo (YOLO11n y RT-DETR-L) y un método clásico de visión artificial basado en contornos.
+El objetivo de la práctica es desarrollar un sistema que detecte y siga personas y vehículos en un vídeo, localice las matrículas de los vehículos y trate de reconocer sus caracteres mediante OCR. Además, se comparan dos detectores de matrículas basados en aprendizaje profundo, YOLO11n y RT-DETR-L, con un método clásico de visión artificial basado en contornos.
 
-La implementación se ha realizado en Python utilizando Ultralytics, PyTorch, OpenCV y Pandas. El entrenamiento y las pruebas se ejecutaron en un equipo con una GPU NVIDIA GeForce RTX 4060 Laptop GPU de 8 GB, Python 3.9.5, PyTorch 2.8.0+cu126 y Ultralytics 8.4.209.
+La implementación está realizada en Python con Ultralytics, PyTorch, OpenCV, Pandas y EasyOCR. El cuaderno se ejecutó en un equipo con una GPU NVIDIA GeForce RTX 4060 Laptop GPU de 8 GB, Python 3.9.5, PyTorch 2.8.0+cu126 y Ultralytics 8.4.209.
 
 ## 2. Datos y preparación del conjunto de entrenamiento
 
-Se parte de un conjunto de imágenes y anotaciones de matrículas. El cuaderno contempla la conversión automática de anotaciones desde varios formatos: Pascal VOC (`.xml`), YOLO (`.txt`), COCO (`.json`) y LabelMe (`.json`). En el procesamiento específico de los JSON utilizados, cada matrícula se transforma a una caja delimitadora y se normalizan sus coordenadas para adaptarlas al formato YOLO. Se utiliza una única clase, denominada `plate`.
+### 2.1. Imágenes y anotaciones
 
-La división del conjunto se realiza de forma aleatoria, fijando la semilla en 42 para hacer reproducible el reparto:
+El cuaderno encuentra **2.387 imágenes** en el directorio de fotografías y **2.418 archivos** en el directorio de anotaciones. Las anotaciones utilizadas en la ejecución corresponden a ficheros JSON con una estructura propia: cada objeto contiene un campo `rectangle` con la posición y dimensiones de la matrícula, y puede incluir el texto de la matrícula en el campo `plate`.
 
-- 70 % para entrenamiento.
-- 10 % para validación.
-- 20 % para test.
+El procesamiento de estos JSON genera cajas delimitadoras normalizadas en el formato YOLO. Se utiliza una única clase, `plate`. Las imágenes con JSON asociado pero sin objetos anotados también se conservan como ejemplos negativos. Se contabilizan **5.236 matrículas anotadas** y **31 ficheros JSON sin una imagen asociada**, que se omiten.
 
-El conjunto se organiza en directorios `train`, `val` y `test`, cada uno con sus carpetas `images` y `labels`. El archivo `plates.yaml` define las rutas y la única clase del problema.
+Aunque el cuaderno contiene código auxiliar para otros formatos de anotación, la salida de la ejecución muestra que los ficheros presentes son JSON y que la conversión efectiva se realiza mediante el procesamiento específico del campo `rectangle`.
 
-**Acceso al conjunto de datos:** [AÑADIR ENLACE PÚBLICO AL DATASET / GOOGLE DRIVE].  
-**Número de imágenes por partición:** [AÑADIR LOS VALORES MOSTRADOS AL EJECUTAR EL REPARTO].  
-**Número total de matrículas anotadas:** [AÑADIR EL VALOR MOSTRADO POR EL CUADERNO].
+### 2.2. División del conjunto
 
-Es importante incluir en la entrega el conjunto de datos o un enlace con permisos de acceso, además de los pesos de los modelos entrenados si se desea que la ejecución pueda reproducirse sin volver a entrenarlos.
+El reparto se realiza de forma aleatoria con `random.seed(42)`. El código reserva primero el 20 % de las imágenes para test y, del resto, el 10 % para validación. Por ello, el porcentaje de validación se calcula sobre el conjunto restante y no sobre el total original.
+
+| Partición | Imágenes |
+|---|---:|
+| Entrenamiento (`train`) | 1.719 |
+| Validación (`val`) | 191 |
+| Test (`test`) | 477 |
+| **Total** | **2.387** |
+
+El conjunto se organiza en directorios `train`, `val` y `test`, cada uno con subdirectorios `images` y `labels`. El archivo `plates.yaml` define las rutas, una única clase y el nombre `plate`.
+
+**Acceso al conjunto de datos:** [AÑADIR ENLACE COMPARTIDO AL DATASET].  
+Para reproducir el entrenamiento también deben facilitarse los pesos generados o conservarse los ficheros de ejecución correspondientes.
 
 ## 3. Entrenamiento de los detectores
 
-Se entrenan dos modelos para localizar matrículas: YOLO11n y RT-DETR-L. Ambos reciben imágenes de tamaño 640 × 640. El entrenamiento de RT-DETR-L se configura con 50 épocas y batch de 8. Para YOLO11n, el cuaderno parte del último checkpoint de una ejecución previa y realiza un entrenamiento adicional de 50 épocas con batch de 16. Por tanto, debe conservarse la distinción entre el entrenamiento inicial y el ajuste adicional de YOLO11n al documentar los resultados completos.
+Se entrenan dos detectores de matrículas con imágenes de tamaño **640 × 640**. El entrenamiento de RT-DETR-L se realiza durante 50 épocas, con batch de 8. Para YOLO11n, el código carga un checkpoint `last.pt` de una ejecución anterior y ejecuta otras 50 épocas con batch de 16.
+
+**Importante sobre YOLO11n:** el entrenamiento adicional se guarda con el nombre `yolo11n_plates_ext`, pero las celdas posteriores de comparación cargan los pesos y leen el `results.csv` de `yolo11n_plates`, sin el sufijo `_ext`. Por tanto, las métricas de test y las curvas que aparecen en la comparativa corresponden a `yolo11n_plates`, no al entrenamiento adicional `yolo11n_plates_ext`. No deben atribuirse automáticamente los resultados de la comparativa a ese ajuste adicional.
 
 ### 3.1. YOLO11n
 
-YOLO11n es la alternativa más ligera de las dos. En la evaluación sobre el conjunto de test se obtiene:
+El entrenamiento adicional indicado en el cuaderno parte de:
 
-- Precisión: **0,9003**.
-- Recall: **0,6048**.
-- mAP@0.5: **0,6228**.
-- mAP@0.5:0.95: **0,3405**.
-- Tiempo de inferencia: **3,9297 ms por imagen**.
+```python
+YOLO(f'{RUNS}/yolo11n_plates/weights/last.pt')
+```
 
-El modelo tiene aproximadamente 2,60 millones de parámetros y 6,4 GFLOPs. Su principal ventaja en esta comparación es la velocidad de inferencia. Sin embargo, su recall es inferior al de RT-DETR-L, por lo que deja sin detectar una mayor proporción de las matrículas presentes.
+y ejecuta 50 épocas, con tamaño de imagen 640, batch 16, `patience=15` y `warmup_epochs=0`. La salida conservada no permite documentar aquí de forma completa la evolución ni el resultado final de esa ejecución adicional.
+
+Para la evaluación de test, el cuaderno carga `runs/yolo11n_plates/weights/best.pt`. Los resultados de esa evaluación se recogen en la sección 4.
+
+El modelo evaluado tiene **2.597.051 parámetros** y **6,4 GFLOPs**.
 
 ### 3.2. RT-DETR-L
 
-RT-DETR-L se entrena durante 50 épocas. La ejecución registrada termina correctamente y consume aproximadamente **1,447 horas**. En la última época se registran, entre otras, las pérdidas `giou_loss = 0,5092`, `cls_loss = 0,3744` y `l1_loss = 0,09179`. La validación final del mejor checkpoint obtiene:
+RT-DETR-L se inicializa a partir de `rtdetr-l.pt` y se entrena durante 50 épocas, con imágenes de 640 × 640 y batch de 8. La ejecución termina correctamente en aproximadamente **1,447 horas**.
+
+En la época 50 se registran las siguientes pérdidas:
+
+- `giou_loss`: **0,5092**.
+- `cls_loss`: **0,3744**.
+- `l1_loss`: **0,09179**.
+
+La validación final del mejor checkpoint obtiene:
 
 - Precisión: **0,910**.
 - Recall: **0,753**.
 - mAP@0.5: **0,765**.
 - mAP@0.5:0.95: **0,450**.
-- Tiempo de inferencia: **12,1 ms por imagen** (medición de validación registrada por Ultralytics).
+- Tiempo de inferencia: **12,1 ms por imagen**.
 
-El modelo cuenta con aproximadamente 31,99 millones de parámetros y 105,3 GFLOPs. En comparación con YOLO11n, obtiene mejores métricas de detección, pero requiere más tiempo de inferencia y más recursos computacionales.
+El modelo tiene **31.985.795 parámetros** y **105,3 GFLOPs**.
 
-### 3.3. Evolución de las pérdidas y métricas
+### 3.3. Evolución de pérdidas y métricas
 
-El cuaderno genera gráficas comparativas de la pérdida de cajas en entrenamiento, la pérdida de cajas en validación y el mAP@0.5 a lo largo de las épocas, leyendo los ficheros `results.csv` de cada ejecución.
+El cuaderno genera tres gráficas a partir de los ficheros `results.csv`:
 
-Estas curvas permiten observar si el modelo aprende de forma progresiva y si las métricas de validación acompañan a la mejora de entrenamiento. En la ejecución de RT-DETR-L, las pérdidas y las métricas presentan pequeñas oscilaciones entre épocas, algo esperable durante el ajuste. Al finalizar, la evaluación del mejor checkpoint alcanza un mAP@0.5 de 0,765.
+1. Pérdida de cajas durante el entrenamiento.
+2. Pérdida de cajas durante la validación.
+3. mAP@0.5 de validación a lo largo de las épocas.
 
-**Gráficas del entrenamiento:** incluir aquí las gráficas generadas en la sección 5.1 del cuaderno, o enlazar los ficheros correspondientes.
-- `train/box_loss` o `train/giou_loss`.
-- `val/box_loss` o `val/giou_loss`.
-- `metrics/mAP50(B)`.
+Para RT-DETR-L se utiliza `giou_loss` cuando no está disponible `box_loss`. Estas curvas permiten observar la evolución del aprendizaje y las oscilaciones entre épocas.
 
-**Nota sobre los resultados:** las métricas finales de test sí aparecen en la salida del cuaderno. Para documentar con precisión la evolución completa de YOLO11n y RT-DETR-L, deben adjuntarse los `results.csv` originales y las gráficas generadas; no se deben reconstruir valores intermedios a partir de las métricas finales.
+La celda de gráficas lee las ejecuciones `yolo11n_plates` y `rtdetr_l_plates`. En consecuencia, la curva de YOLO corresponde a la ejecución base y no a `yolo11n_plates_ext`. Para que la memoria pueda mostrar y contrastar la evolución completa, deben adjuntarse los `results.csv` y las gráficas generadas por el cuaderno.
+
+**Gráficas del entrenamiento:** [INSERTAR AQUÍ LAS TRES GRÁFICAS GENERADAS EN LA SECCIÓN 5.1].  
+**Ficheros de resultados:** incluir los `results.csv` de las ejecuciones que se quieran documentar.
 
 ## 4. Comparación de YOLO11n y RT-DETR-L en test
 
-La siguiente tabla recoge los resultados obtenidos al evaluar los mejores pesos de cada modelo sobre la partición de test:
+La función `eval_model` evalúa los mejores pesos sobre la partición `test`, con tamaño de imagen 640 y el dispositivo configurado en el cuaderno. Los resultados registrados son:
 
 | Modelo | Precisión | Recall | mAP@0.5 | mAP@0.5:0.95 | Inferencia (ms/imagen) |
 |---|---:|---:|---:|---:|---:|
-| YOLO11n | 0,9003 | 0,6048 | 0,6228 | 0,3405 | 3,9297 |
-| RT-DETR-L | 0,8594 | 0,7029 | 0,6970 | 0,3955 | 22,8070 |
+| YOLO11n | 0,9003 | 0,6048 | 0,6228 | 0,3405 | 3,4196 |
+| RT-DETR-L | 0,8594 | 0,7029 | 0,6970 | 0,3955 | 21,6959 |
 
-En esta tabla se muestran las métricas obtenidas específicamente en la evaluación de test del cuaderno. La precisión y el recall de RT-DETR-L son distintos de los valores de su validación final, ya que corresponden a particiones diferentes.
+RT-DETR-L obtiene un recall, un mAP@0.5 y un mAP@0.5:0.95 superiores. Por tanto, en este conjunto de test localiza una mayor proporción de matrículas y consigue mejores resultados globales según las métricas mAP. YOLO11n alcanza una precisión mayor y un tiempo de inferencia considerablemente menor.
 
-RT-DETR-L obtiene un mAP@0.5 y un mAP@0.5:0.95 superiores, además de un recall mayor. Esto indica que localiza una proporción mayor de las matrículas y presenta un rendimiento global de detección superior en este conjunto de test. YOLO11n, por su parte, consigue mayor precisión y es notablemente más rápido: su tiempo de inferencia es aproximadamente 5,8 veces menor que el de RT-DETR-L según esta medición.
+La elección depende del objetivo: YOLO11n resulta más conveniente cuando la velocidad es prioritaria, mientras que RT-DETR-L ofrece mayor exhaustividad de detección a costa de un tiempo de inferencia superior.
 
-Por tanto, la elección depende del objetivo: YOLO11n resulta más adecuado cuando prima la velocidad, mientras que RT-DETR-L ofrece una detección más completa cuando se puede asumir un coste de inferencia superior.
+Estos resultados deben interpretarse teniendo en cuenta la diferencia de ejecuciones descrita en la sección 3.1: la evaluación de YOLO carga `yolo11n_plates`, aunque el cuaderno también lanza un entrenamiento adicional guardado como `yolo11n_plates_ext`.
 
 ## 5. Comparación con un método clásico basado en contornos
 
-Como alternativa a los detectores entrenados, se implementa un procedimiento clásico mediante OpenCV. El proceso consta de los siguientes pasos:
+Como alternativa a los detectores entrenados, se implementa un método clásico con OpenCV. El procedimiento es:
 
-1. Conversión de la imagen a escala de grises.
-2. Aplicación de un filtro bilateral para reducir ruido conservando bordes.
-3. Detección de bordes mediante Canny y dilatación.
-4. Extracción de contornos y aproximación poligonal.
-5. Selección de candidatos con cuatro vértices, área mínima y relación de aspecto entre 2,0 y 6,5.
+1. Convertir la imagen a escala de grises.
+2. Aplicar un filtro bilateral para reducir el ruido y conservar los bordes.
+3. Detectar bordes mediante Canny y aplicar dilatación.
+4. Extraer contornos y aproximarlos mediante polígonos.
+5. Conservar candidatos de cuatro vértices, área mínima y relación de aspecto entre 2,0 y 6,5.
 
-El método utiliza la forma aproximadamente rectangular de las matrículas como criterio principal. No aprende características a partir de ejemplos, por lo que puede verse afectado por fondos con bordes rectangulares, iluminación, perspectiva y oclusiones.
+El rango de relación de aspecto se elige teniendo en cuenta la forma rectangular de las matrículas. El método no aprende a partir de ejemplos y depende principalmente de características geométricas, por lo que puede confundir matrículas con otros elementos rectangulares de la escena.
 
-La evaluación se realiza sobre el mismo conjunto de test. Una detección se considera correcta cuando su IoU con una caja real es igual o superior a 0,5.
+La evaluación se realiza sobre las imágenes de test. Una predicción se considera correcta cuando su IoU con una caja real es igual o superior a 0,5. Los resultados son:
 
 | Método | Precisión | Recall | F1 | TP | FP | FN |
 |---|---:|---:|---:|---:|---:|---:|
@@ -101,81 +122,103 @@ La evaluación se realiza sobre el mismo conjunto de test. Una detección se con
 | YOLO11n | 0,874 | 0,623 | 0,727 | 654 | 94 | 396 |
 | RT-DETR-L | 0,781 | 0,722 | 0,750 | 758 | 213 | 292 |
 
-Los resultados muestran una diferencia clara entre el método clásico y los modelos entrenados. El detector por contornos obtiene una precisión y un recall muy bajos, además de generar numerosos falsos positivos. Esto se debe a que la forma rectangular no es una característica suficiente para distinguir una matrícula de otros elementos de la escena.
+El método de contornos obtiene resultados claramente inferiores y genera numerosos falsos positivos. La forma rectangular por sí sola no basta para distinguir una matrícula de otros elementos de la imagen.
 
-Entre los modelos entrenados, RT-DETR-L obtiene el mayor recall y el mejor F1, mientras que YOLO11n mantiene una precisión mayor. En consecuencia, los detectores basados en aprendizaje profundo resultan mucho más adecuados para este problema.
+Entre los detectores entrenados, RT-DETR-L consigue el mayor recall y el mejor F1, mientras que YOLO11n obtiene mayor precisión. Esto refleja el compromiso entre detectar más matrículas y reducir las detecciones incorrectas.
 
-**Gráficas y ejemplos visuales:** incluir las imágenes comparativas generadas en la sección 6 del cuaderno, donde se muestran las detecciones de contornos, YOLO11n y RT-DETR-L sobre las mismas imágenes.
+El cuaderno también genera una comparación visual sobre cuatro imágenes de test, mostrando las detecciones de contornos, YOLO11n y RT-DETR-L.
 
-No se ha registrado en el cuaderno una medición de tiempo comparable para el método de contornos; por tanto, no se incluye una cifra de velocidad para él.
+**Ejemplos visuales:** [INSERTAR AQUÍ LA FIGURA COMPARATIVA GENERADA EN LA SECCIÓN 6].  
+No se registra una medición de tiempo comparable para el método de contornos, por lo que no se incluye una cifra de velocidad.
 
 ## 6. Procesamiento del vídeo: seguimiento, matrículas y OCR
 
-Una vez comparados los detectores, se construye un pipeline para procesar el vídeo de test `C0142.mp4`.
+El pipeline completo procesa el vídeo de test `C0142.mp4`. En la ejecución con salida conservada se utiliza RT-DETR-L como detector de matrículas. La detección de personas y vehículos se realiza con YOLO11 y el seguimiento con ByteTrack.
 
 ### 6.1. Detección y seguimiento
 
-Se utiliza YOLO11n (`yolo11n.pt`) para detectar personas, coches, motocicletas, autobuses y camiones. El seguimiento entre fotogramas se realiza mediante ByteTrack, que asigna un identificador a cada objeto y permite mantener su identidad a lo largo del vídeo.
-
-Las clases consideradas son:
+Se detectan las siguientes clases COCO:
 
 | Clase | Identificador COCO |
 |---|---:|
-| Persona | 0 |
-| Coche | 2 |
-| Motocicleta | 3 |
-| Autobús | 5 |
-| Camión | 7 |
+| Persona (`person`) | 0 |
+| Coche (`car`) | 2 |
+| Motocicleta (`motorcycle`) | 3 |
+| Autobús (`bus`) | 5 |
+| Camión (`truck`) | 7 |
 
-Para cada vehículo se recorta su región y se aplica el detector de matrículas seleccionado. En la ejecución documentada se utiliza RT-DETR-L.
+ByteTrack asigna identificadores a los objetos para mantener su identidad entre fotogramas. Para cada vehículo se recorta la región correspondiente y se ejecuta el detector de matrículas seleccionado.
 
-### 6.2. Reconocimiento de matrículas
+El pipeline diferencia entre un conteo bruto de identificadores únicos y un conteo filtrado. El filtro exige una permanencia mínima de 15 fotogramas. Además, para coches, autobuses y camiones se aplica un umbral mínimo al área máxima de la caja con respecto al área del fotograma, con el objetivo de reducir el recuento de vehículos pequeños o aparcados que reaparecen con identificadores distintos.
 
-La lectura de caracteres se realiza mediante EasyOCR, si está disponible en el entorno. Antes del reconocimiento, el recorte de la matrícula se convierte a escala de grises, se amplía mediante interpolación cúbica y se aplica CLAHE para mejorar el contraste.
+### 6.2. Reconocimiento de matrículas (OCR)
 
-Después, se normaliza el texto reconocido mediante reglas que contemplan confusiones habituales entre caracteres, como `O` y `0`, `I` y `1` o `S` y `5`. También se comprueba que el resultado encaje con determinados patrones de matrículas.
+El cuaderno intenta utilizar EasyOCR. La preparación de cada recorte incluye conversión a escala de grises, ampliación mediante interpolación cúbica y, en la configuración base, aplicación de CLAHE para mejorar el contraste. El reconocimiento limita los caracteres permitidos a letras mayúsculas y números.
 
-El sistema acumula las lecturas por identificador de seguimiento y suma sus confianzas. De esta manera, el texto final de un vehículo se decide a partir de las lecturas obtenidas en distintos fotogramas, en lugar de depender de una única observación.
+Después se normaliza el texto mediante reglas que contemplan confusiones habituales entre caracteres, como `O` y `0`, `I` y `1`, `S` y `5`, entre otras. También se comprueba que el resultado encaje con plantillas de matrículas contempladas en el código.
 
-Durante la ejecución se produjo un error de permisos al intentar instalar EasyOCR mediante `%pip` (Windows devolvió `WinError 5` al acceder a `cv2.pyd`). No obstante, el cuaderno continuó con el bloque de OCR disponible en el entorno. Conviene comprobar que EasyOCR está correctamente instalado antes de reproducir el experimento; si no está disponible, la columna de texto de matrícula puede quedar vacía.
+Las lecturas se acumulan por identificador de seguimiento y se tienen en cuenta sus confianzas, de forma que el texto asociado al vehículo no dependa de una única lectura.
 
-### 6.3. Resultados del vídeo
+La instalación de EasyOCR mediante `%pip` no se completó: Windows devolvió `WinError 5` al intentar acceder a `cv2.pyd`. Sin embargo, la salida de la ejecución del pipeline muestra que el lector OCR sí estaba disponible en el entorno utilizado para esa ejecución.
 
-En la ejecución registrada se procesaron **2.832 fotogramas**. Los conteos por identificadores únicos fueron:
+### 6.3. Pruebas y ajuste del OCR
 
-| Clase | Objetos detectados |
+Además de utilizar OCR en el vídeo, el cuaderno realiza pruebas sobre recortes de matrículas del conjunto de test.
+
+Primero compara cinco variantes de preprocesamiento y lectura sobre **150 recortes**. La configuración `detect + CLAHE` obtiene un **43,3 % de acierto exacto** y un **62,0 % de resultados con formato válido**. Las otras variantes evaluadas obtienen porcentajes de acierto exacto inferiores.
+
+Posteriormente se realiza una búsqueda por coordenadas de parámetros, utilizando 100 recortes para el ajuste y 50 para validación. La configuración seleccionada modifica tres parámetros respecto a la configuración base:
+
+- `clahe=False`.
+- `text_threshold=0.85`.
+- `width_ths=0.7`.
+
+En los 100 recortes de ajuste, el acierto exacto pasa de **0,48** con la configuración base a **0,54** con la configuración ajustada. En los 50 recortes reservados para validación, ambas configuraciones obtienen **0,54** de acierto exacto. Por tanto, el ajuste mejora el resultado medido en el conjunto de ajuste, pero no muestra una mejora en el conjunto reservado.
+
+También se analiza la influencia del ancho de la matrícula en la imagen. En una muestra de hasta 300 recortes, los resultados muestran que las matrículas de mayor anchura se reconocen mejor: para el tramo de más de 90 píxeles se obtiene un 0,433 de acierto exacto, mientras que para anchuras entre 45 y 60 píxeles el acierto exacto es 0,115. Esto evidencia la importancia de la resolución del recorte.
+
+### 6.4. Resultados del vídeo
+
+La ejecución de RT-DETR-L procesa **2.832 fotogramas** y tarda aproximadamente **635 segundos**. La salida del pipeline registra el siguiente conteo bruto de identificadores únicos:
+
+| Clase | Identificadores únicos |
 |---|---:|
-| Coches | 222 |
-| Autobuses | 7 |
-| Personas | 38 |
-| Camiones | 7 |
-| Motocicletas | 4 |
+| Coches | 220 |
+| Autobuses | 4 |
+| Personas | 40 |
+| Camiones | 11 |
+| Motocicletas | 3 |
 
-Al aplicar el filtro de estabilidad de al menos 15 fotogramas, los conteos resultantes fueron:
+Tras aplicar el filtro de permanencia mínima de 15 fotogramas y el filtro de área a coches, autobuses y camiones, la salida muestra:
 
-| Clase | Objetos estables |
+| Clase | Objetos contabilizados tras el filtro |
 |---|---:|
-| Coches | 138 |
-| Personas | 18 |
-| Motocicletas | 2 |
+| Coches | 28 |
 | Autobuses | 1 |
+| Personas | 20 |
+| Motocicletas | 3 |
+| Camiones | No aparece ningún objeto en el conteo filtrado |
 
-Además, se detectó una matrícula en **35 vehículos**. Se obtuvo texto válido para tres identificadores de seguimiento en la ejecución registrada: `341`, `626` y `678`. Estos resultados muestran que la localización de la matrícula no implica necesariamente que el OCR pueda leer correctamente sus caracteres: la resolución, el tamaño del recorte, el movimiento y la perspectiva pueden impedir una lectura fiable.
+La salida del propio pipeline informa de **49 vehículos con matrícula detectada** y de **3 vehículos con texto OCR válido**, asociados en esa salida a los identificadores `555`, `626` y `660`.
 
-### 6.4. Vídeo de salida
+Hay una discrepancia entre esa cifra y la inspección posterior del CSV: la celda que agrupa el CSV por identificador informa de **35 vehículos con matrícula detectada**, también con **3 textos no vacíos**. Además, los ejemplos de texto que aparecen en esa inspección incluyen los identificadores `626` y `341`. Por tanto, las salidas guardadas en el cuaderno no permiten reconciliar completamente los identificadores y el número de matrículas detectadas entre el resumen del pipeline y el CSV. Para la entrega debe tomarse como referencia el vídeo y el CSV finales de una misma ejecución, y volver a generar ambos si se necesita una cifra única y consistente.
 
-El pipeline genera un vídeo anotado (`resultado.mp4`) que muestra las cajas de detección, los identificadores de seguimiento, las cajas de matrícula y el texto reconocido cuando está disponible. En la parte superior se muestra un resumen de los objetos contabilizados.
+### 6.5. Vídeo de salida
 
-**Vídeo de test procesado:** [AÑADIR ENLACE AL VÍDEO `resultado.mp4`].  
-El vídeo incluido en la entrega debe mostrar de forma visible la matrícula localizada y, cuando exista una lectura OCR válida, el texto reconocido asociado a ella.
+El pipeline genera un vídeo anotado (`resultado_rtdetr.mp4`, según la configuración del pipeline) con las cajas de detección, identificadores de seguimiento, cajas de matrícula y texto OCR cuando está disponible. También muestra un resumen de los objetos contabilizados.
+
+**Vídeo de test procesado:** [AÑADIR ENLACE AL VÍDEO GENERADO].  
+Debe incluirse el vídeo real de salida o un enlace accesible al mismo.
+
+**Nota:** el cuaderno contiene una celda para ejecutar el pipeline con YOLO como detector de matrículas (`7c`), pero esa celda no tiene una salida registrada en el notebook adjunto. La ejecución con resultados visibles corresponde a RT-DETR-L.
 
 ## 7. Volcado CSV
 
-El procesamiento genera `resultado.csv`, con una fila por objeto detectado en cada fotograma. El fichero obtenido en la ejecución registrada contiene **20.941 filas y 15 columnas**.
+El procesamiento genera un CSV con una fila por objeto detectado en cada fotograma. La inspección del fichero registrada en el cuaderno muestra una dimensión de **20.941 filas y 15 columnas**.
 
 | Columna | Descripción |
 |---|---|
-| `fotograma` | Número de fotograma procesado. |
+| `fotograma` | Número del fotograma procesado. |
 | `tipo_objeto` | Clase del objeto detectado. |
 | `confianza` | Confianza de la detección del objeto. |
 | `identificador_tracking` | Identificador asignado por ByteTrack. |
@@ -183,34 +226,46 @@ El procesamiento genera `resultado.csv`, con una fila por objeto detectado en ca
 | `matricula_en_su_caso` | Indica si se ha localizado una matrícula para el objeto. |
 | `confianza_matricula` | Confianza de la detección de matrícula. |
 | `mx1`, `my1`, `mx2`, `my2` | Coordenadas de la caja de matrícula. |
-| `texto_matricula` | Texto final reconocido para la matrícula, cuando está disponible. |
+| `texto_matricula` | Texto reconocido para la matrícula, cuando está disponible. |
 
-El texto final de cada vehículo se propaga a las filas de ese identificador en las que se ha detectado una matrícula. Por tanto, la columna `texto_matricula` permite consultar la matrícula asociada al objeto seguido a lo largo del vídeo.
+El recuento de filas por clase que aparece al inspeccionar el CSV es:
 
-**CSV de salida:** [AÑADIR EL ARCHIVO `resultado.csv` O SU ENLACE].  
-Debe incluirse el CSV real generado por la ejecución, no únicamente una captura de su contenido.
+| Clase | Filas |
+|---|---:|
+| Coche (`car`) | 17.431 |
+| Persona (`person`) | 3.161 |
+| Autobús (`bus`) | 212 |
+| Motocicleta (`motorcycle`) | 89 |
+| Camión (`truck`) | 48 |
+| **Total** | **20.941** |
+
+El texto OCR puede estar vacío cuando no se consigue una lectura válida. El CSV debe incluirse como fichero real en la entrega, no únicamente mediante una captura.
+
+**CSV de salida:** [AÑADIR EL ARCHIVO CSV GENERADO O SU ENLACE].  
+Antes de entregar, comprobar que el CSV corresponde al mismo vídeo de salida que se adjunta.
 
 ## 8. Conclusiones
 
-La práctica permite comparar tres aproximaciones a la detección de matrículas. El método basado en contornos presenta un rendimiento claramente insuficiente en escenas reales, ya que depende de características geométricas simples y genera muchos falsos positivos.
+La práctica compara dos detectores de matrículas basados en aprendizaje profundo con un método clásico de contornos. El método de contornos obtiene una precisión, un recall y un F1 muy bajos, y genera numerosos falsos positivos. Los resultados muestran que los criterios geométricos por sí solos no son suficientes para localizar matrículas de forma robusta en las imágenes utilizadas.
 
-Los modelos entrenados ofrecen resultados considerablemente mejores. RT-DETR-L alcanza el mejor recall y F1 sobre el conjunto de test, por lo que detecta más matrículas y proporciona el mejor equilibrio entre precisión y exhaustividad según esta métrica. YOLO11n, en cambio, destaca por su velocidad y precisión, lo que lo convierte en una opción interesante cuando el tiempo de procesamiento es un factor prioritario.
+En la evaluación sobre test, RT-DETR-L consigue mayor recall y mAP que YOLO11n, mientras que YOLO11n ofrece mayor precisión y un tiempo de inferencia mucho menor. La elección depende, por tanto, de si se prioriza la velocidad o la detección de una mayor proporción de matrículas.
 
-En el procesamiento del vídeo, la combinación de detección de objetos con ByteTrack permite contar objetos únicos y mantener su identidad entre fotogramas. La detección de matrículas y el OCR añaden información útil al seguimiento, aunque la lectura de caracteres sigue siendo la parte más sensible a la calidad de imagen. En la ejecución registrada se localizaron matrículas en 35 vehículos, pero solo se obtuvo texto válido para tres identificadores, por lo que existe margen de mejora en el reconocimiento.
+El pipeline de vídeo combina detección de objetos, seguimiento mediante ByteTrack, detección de matrículas y OCR. El seguimiento permite mantener identificadores entre fotogramas y aplicar filtros para el conteo. El reconocimiento de texto es la parte más sensible a la calidad de imagen: las pruebas con recortes muestran que una mayor anchura de matrícula favorece la lectura.
 
-En conjunto, los resultados muestran que el aprendizaje profundo es más apropiado que el método clásico de contornos para localizar matrículas en este escenario. La elección entre YOLO11n y RT-DETR-L debe realizarse en función del equilibrio deseado entre velocidad y rendimiento de detección.
+En la ejecución registrada se procesaron 2.832 fotogramas. No obstante, existe una discrepancia entre el resumen del pipeline y la inspección posterior del CSV en el número de vehículos con matrícula detectada y en algunos identificadores con texto. Es importante generar y entregar el vídeo y el CSV de una misma ejecución para que los resultados finales sean coherentes.
 
 ## 9. Contenido de la entrega
 
-La entrega debe incluir, junto con los materiales de la práctica anterior:
+La entrega debe incluir:
 
-- [ ] Este archivo `README.md` o `README.md` con la memoria y la comparativa.
-- [ ] El cuaderno de ejecución (`VC_P4_local.ipynb`).
-- [ ] El vídeo de test procesado (`resultado.mp4`) o un enlace accesible al mismo.
-- [ ] El CSV generado (`resultado.csv`).
-- [ ] El conjunto de datos utilizado o un enlace con permisos de acceso.
-- [ ] Los pesos de los detectores entrenados (`best.pt`) o una forma de descargarlos.
-- [ ] Las gráficas de entrenamiento y validación, incluyendo pérdidas y mAP.
-- [ ] Las imágenes de ejemplo de la comparación entre contornos, YOLO11n y RT-DETR-L.
+- [ ] Este archivo `README.md` con la memoria de la práctica.
+- [ ] El cuaderno `VC_P4_local.ipynb`.
+- [ ] El vídeo de test procesado o un enlace accesible al mismo.
+- [ ] El CSV generado (`resultado_rtdetr.csv` o el nombre final utilizado).
+- [ ] El conjunto de datos y sus anotaciones, o un enlace compartido con permisos de acceso.
+- [ ] Los pesos entrenados (`best.pt`) necesarios para reproducir la detección.
+- [ ] Los ficheros `results.csv` de los entrenamientos documentados.
+- [ ] Las gráficas de pérdidas y mAP generadas en la sección 5.1.
+- [ ] La figura con ejemplos de comparación entre contornos, YOLO11n y RT-DETR-L.
 
-Antes de entregar, deben sustituirse los enlaces pendientes y comprobarse que el vídeo permite visualizar las matrículas detectadas y que el CSV contiene la columna `texto_matricula` con los valores reconocidos.
+Antes de entregar, sustituir los enlaces pendientes, comprobar que el vídeo y el CSV pertenecen a la misma ejecución y revisar la discrepancia señalada en la sección 6.4.
