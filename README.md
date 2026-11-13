@@ -29,8 +29,7 @@ El reparto se realiza de forma aleatoria con `random.seed(42)`. El código reser
 
 El conjunto se organiza en directorios `train`, `val` y `test`, cada uno con subdirectorios `images` y `labels`. El archivo `plates.yaml` define las rutas, una única clase y el nombre `plate`.
 
-**Acceso al conjunto de datos:** [AÑADIR ENLACE COMPARTIDO AL DATASET].  
-Para reproducir el entrenamiento también deben facilitarse los pesos generados o conservarse los ficheros de ejecución correspondientes.
+**Acceso al conjunto de datos:** [[Enlace al dataset]](https://drive.google.com/drive/folders/1RFd6sKH_QMQcpE_w5rWmy8rKiYUY5_SI?usp=sharing).  
 
 ## 3. Entrenamiento de los detectores
 
@@ -84,8 +83,7 @@ Para RT-DETR-L se utiliza `giou_loss` cuando no está disponible `box_loss`. Est
 
 La celda de gráficas lee las ejecuciones `yolo11n_plates` y `rtdetr_l_plates`. En consecuencia, la curva de YOLO corresponde a la ejecución base y no a `yolo11n_plates_ext`. Para que la memoria pueda mostrar y contrastar la evolución completa, deben adjuntarse los `results.csv` y las gráficas generadas por el cuaderno.
 
-**Gráficas del entrenamiento:** [INSERTAR AQUÍ LAS TRES GRÁFICAS GENERADAS EN LA SECCIÓN 5.1].  
-**Ficheros de resultados:** incluir los `results.csv` de las ejecuciones que se quieran documentar.
+**Gráficas del entrenamiento:** ![GRÁFICAS GENERADAS EN LA SECCIÓN 5.1](output.png). 
 
 ## 4. Comparación de YOLO11n y RT-DETR-L en test
 
@@ -128,7 +126,7 @@ Entre los detectores entrenados, RT-DETR-L consigue el mayor recall y el mejor F
 
 El cuaderno también genera una comparación visual sobre cuatro imágenes de test, mostrando las detecciones de contornos, YOLO11n y RT-DETR-L.
 
-**Ejemplos visuales:** [INSERTAR AQUÍ LA FIGURA COMPARATIVA GENERADA EN LA SECCIÓN 6].  
+**Ejemplos visuales:** ![INSERTAR AQUÍ LA FIGURA COMPARATIVA GENERADA EN LA SECCIÓN 6](output_6.png).  
 No se registra una medición de tiempo comparable para el método de contornos, por lo que no se incluye una cifra de velocidad.
 
 ## 6. Procesamiento del vídeo: seguimiento, matrículas y OCR
@@ -207,10 +205,7 @@ Hay una discrepancia entre esa cifra y la inspección posterior del CSV: la celd
 
 El pipeline genera un vídeo anotado (`resultado_rtdetr.mp4`, según la configuración del pipeline) con las cajas de detección, identificadores de seguimiento, cajas de matrícula y texto OCR cuando está disponible. También muestra un resumen de los objetos contabilizados.
 
-**Vídeo de test procesado:** [AÑADIR ENLACE AL VÍDEO GENERADO].  
-Debe incluirse el vídeo real de salida o un enlace accesible al mismo.
-
-**Nota:** el cuaderno contiene una celda para ejecutar el pipeline con YOLO como detector de matrículas (`7c`), pero esa celda no tiene una salida registrada en el notebook adjunto. La ejecución con resultados visibles corresponde a RT-DETR-L.
+**Vídeo de test procesado:** Se encuentra en resultados/resultado_rtdetr.mp4 en este mismo repositorio.
 
 ## 7. Volcado CSV
 
@@ -241,8 +236,7 @@ El recuento de filas por clase que aparece al inspeccionar el CSV es:
 
 El texto OCR puede estar vacío cuando no se consigue una lectura válida. El CSV debe incluirse como fichero real en la entrega, no únicamente mediante una captura.
 
-**CSV de salida:** [AÑADIR EL ARCHIVO CSV GENERADO O SU ENLACE].  
-Antes de entregar, comprobar que el CSV corresponde al mismo vídeo de salida que se adjunta.
+**CSV de salida:** Se encuentra en resultados/resultado.csv en este mismo repositorio.
 
 ## 8. Conclusiones
 
@@ -254,18 +248,3 @@ El pipeline de vídeo combina detección de objetos, seguimiento mediante ByteTr
 
 En la ejecución registrada se procesaron 2.832 fotogramas. No obstante, existe una discrepancia entre el resumen del pipeline y la inspección posterior del CSV en el número de vehículos con matrícula detectada y en algunos identificadores con texto. Es importante generar y entregar el vídeo y el CSV de una misma ejecución para que los resultados finales sean coherentes.
 
-## 9. Contenido de la entrega
-
-La entrega debe incluir:
-
-- [ ] Este archivo `README.md` con la memoria de la práctica.
-- [ ] El cuaderno `VC_P4_local.ipynb`.
-- [ ] El vídeo de test procesado o un enlace accesible al mismo.
-- [ ] El CSV generado (`resultado_rtdetr.csv` o el nombre final utilizado).
-- [ ] El conjunto de datos y sus anotaciones, o un enlace compartido con permisos de acceso.
-- [ ] Los pesos entrenados (`best.pt`) necesarios para reproducir la detección.
-- [ ] Los ficheros `results.csv` de los entrenamientos documentados.
-- [ ] Las gráficas de pérdidas y mAP generadas en la sección 5.1.
-- [ ] La figura con ejemplos de comparación entre contornos, YOLO11n y RT-DETR-L.
-
-Antes de entregar, sustituir los enlaces pendientes, comprobar que el vídeo y el CSV pertenecen a la misma ejecución y revisar la discrepancia señalada en la sección 6.4.
